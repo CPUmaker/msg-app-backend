@@ -1,11 +1,16 @@
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 
+import { IMessage } from "./MessageModel";
+import { IConversation } from "./ConversationModel";
+
 export interface IUser extends mongoose.Document {
-    username: string,
-    email: string,
-    password: string,
-    comparePassword: (candidatePassword: string) => Promise<boolean>,
+  username: string;
+  email: string;
+  password: string;
+  messages: (mongoose.Types.ObjectId | IMessage)[];
+  conversations: (mongoose.Types.ObjectId | IConversation)[];
+  comparePassword: (candidatePassword: string) => Promise<boolean>;
 }
 
 const userSchema = new mongoose.Schema<IUser>(
@@ -29,6 +34,16 @@ const userSchema = new mongoose.Schema<IUser>(
       required: true,
       trim: true,
       minlength: 8,
+    },
+    messages: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Message",
+      required: true,
+    },
+    conversations: {
+      type: [mongoose.Schema.Types.ObjectId],
+      ref: "Conversation",
+      required: true,
     },
   },
   {
