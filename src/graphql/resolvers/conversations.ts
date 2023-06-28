@@ -1,9 +1,18 @@
 import { GraphQLError } from "graphql";
 import { withFilter } from "graphql-subscriptions";
-import mongoose from "mongoose";
+import mongoose, { Mongoose } from "mongoose";
 
-import { GraphQLContext } from "../../utils/types";
-import Participant, { IParticipant } from "../../models/CoversationParticipantModel";
+import {
+  GraphQLContext,
+  ConversationCreatedSubscriptionPayload,
+  ConversationUpdatedSubscriptionData,
+  ConversationDeletedSubscriptionPayload,
+} from "../../utils/types";
+import Participant, {
+  IParticipant,
+} from "../../models/CoversationParticipantModel";
+import Conversation, { IConversation } from "../../models/ConversationModel";
+import Message, { IMessage } from "../../models/MessageModel";
 
 const resolvers = {
   Query: {
@@ -19,14 +28,290 @@ const resolvers = {
       }
 
       try {
-        const participants = await Participant.find({user: new mongoose.Types.ObjectId(userId)}).populate("conversation");
-        const conversations = participants.map((participant) => participant.conversation);
+        const participants = await Participant.find({
+          user: new mongoose.Types.ObjectId(userId),
+        }).populate("conversation");
+        const conversations = participants.map(
+          (participant) => participant.conversation
+        );
 
         return conversations;
       } catch (error: any) {
         console.log("[error]", error);
         throw new GraphQLError(error?.message);
       }
+    },
+  },
+
+  Mutation: {
+    createConversation: async function (
+      _: any,
+      args: { participantIds: Array<string> },
+      context: GraphQLContext
+    ): Promise<{ conversationId: string }> {
+      const { userId, pubsub } = context;
+      const { participantIds } = args;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      try {
+        const conversation: IConversation = new Conversation();
+        conversation.participants = await Promise.all(
+          participantIds.map(async (participantUserId) => {
+            const participant: IParticipant = new Participant({
+              user: participantUserId,
+              conversation: conversation._id,
+              hasSeenLatestMessage: participantUserId === userId,
+            });
+            return await participant.save();
+          })
+        );
+        await conversation.save();
+
+        pubsub.publish("CONVERSAION_CREATED", {
+          conversationCreated: conversation,
+        });
+
+        return { conversationId: conversation._id.toString() };
+      } catch (error: any) {
+        console.log("[error]", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+    markConversationAsRead: async function (
+      _: any,
+      args: { userId: string; conversationId: string },
+      context: GraphQLContext
+    ): Promise<boolean> {
+      const { userId } = context;
+      const { userId: participantUserId, conversationId } = args;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      try {
+        await Participant.findOneAndUpdate(
+          {
+            user: participantUserId,
+            conversation: conversationId,
+          },
+          { hasSeenLatestMessage: true }
+        );
+
+        return true;
+      } catch (error: any) {
+        console.log("[error]", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+    deleteConversation: async function (
+      _: any,
+      args: { conversationId: string },
+      context: GraphQLContext
+    ): Promise<boolean> {
+      const { userId, pubsub } = context;
+      const { conversationId } = args;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      try {
+        const deletedConversation = await Conversation.findByIdAndDelete(
+          conversationId
+        )
+          .populate("participants")
+          .exec();
+
+        pubsub.publish("CONVERSATION_DELETED", {
+          conversationDeleted: deletedConversation,
+        });
+
+        return true;
+      } catch (error: any) {
+        console.log("[error]", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+    updateParticipants: async function (
+      _: any,
+      args: { conversationId: string; participantIds: Array<string> },
+      context: GraphQLContext
+    ): Promise<boolean> {
+      const { userId, pubsub } = context;
+      const { conversationId, participantIds } = args;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      try {
+        const conversation = await Conversation.findById(conversationId)
+          .populate("participants")
+          .populate("latestMessage")
+          .exec();
+        if (!conversation) {
+          throw new Error("The conversationId does not exist");
+        }
+
+        const participants = conversation.participants as IParticipant[];
+
+        const existingParticipants = participants.map((participant) =>
+          (participant.user as mongoose.Types.ObjectId).toString()
+        );
+
+        const participantsToDelete = existingParticipants.filter(
+          (pUID) => !participantIds.includes(pUID)
+        );
+
+        const participantsToCreate = participantIds.filter(
+          (pUID) => !existingParticipants.includes(pUID)
+        );
+
+        // Delete participants
+        conversation.participants = participants.filter(
+          (participant) =>
+            !participantsToDelete.includes(participant._id.toString())
+        );
+        const removedParticipants = participantsToDelete.map(
+          async (pUID) => await Participant.findOneAndDelete({ user: pUID })
+        );
+
+        // Add participants
+        const addedParticipants = await Promise.all(
+          participantsToCreate.map(async (pUID) => {
+            const participant: IParticipant = new Participant({
+              user: pUID,
+              conversation: conversationId,
+              hasSeenLatestMessage: true,
+            });
+            return await participant.save();
+          })
+        );
+        conversation.participants.push(...addedParticipants);
+
+        await conversation.save();
+
+        pubsub.publish("CONVERSATION_UPDATED", {
+          conversationUpdated: {
+            conversation: conversation,
+            addedUserIds: participantsToCreate,
+            removedUserIds: participantsToDelete,
+          },
+        });
+
+        return true;
+      } catch (error: any) {
+        console.log("[error]", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+  },
+
+  Subscription: {
+    conversationCreated: {
+      subscribe: withFilter(
+        (_: any, __: any, context: GraphQLContext) => {
+          const { pubsub } = context;
+          return pubsub.asyncIterator(["CONVERSATION_CREATED"]);
+        },
+        (
+          payload: ConversationCreatedSubscriptionPayload,
+          _,
+          context: GraphQLContext
+        ) => {
+          const { userId } = context;
+
+          if (!userId) {
+            throw new GraphQLError("The credential is invalid");
+          }
+
+          const {
+            conversationCreated: { participants },
+          } = payload;
+
+          return !!(participants as IParticipant[]).find(
+            (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+          );
+        }
+      ),
+    },
+    conversationUpdated: {
+      subscribe: withFilter(
+        (_: any, __: any, context: GraphQLContext) => {
+          const { pubsub } = context;
+          return pubsub.asyncIterator(["CONVERSATION_UPDATED"]);
+        },
+        (
+          payload: ConversationUpdatedSubscriptionData,
+          _,
+          context: GraphQLContext
+        ) => {
+          const { userId } = context;
+
+          if (!userId) {
+            throw new GraphQLError("The credential is invalid");
+          }
+
+          const {
+            conversationUpdated: {
+              conversation: { participants },
+              addedUserIds,
+              removedUserIds,
+            },
+          } = payload;
+
+          const userIsParticipant = !!(participants as IParticipant[]).find(
+            (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+          );
+
+          const lastestMessage = payload.conversationUpdated.conversation
+            .latestMessage as IMessage;
+          const userSentLatestMessage =
+            (lastestMessage.sender as mongoose.Types.ObjectId).toString() ===
+            userId;
+
+          const userIsBeingRemoved =
+            removedUserIds &&
+            Boolean(removedUserIds.find((id) => id === userId));
+
+          return (
+            (userIsParticipant && !userSentLatestMessage) ||
+            userSentLatestMessage ||
+            userIsBeingRemoved
+          );
+        }
+      ),
+    },
+    conversationDeleted: {
+      subscribe: withFilter(
+        (_: any, __: any, context: GraphQLContext) => {
+          const { pubsub } = context;
+          return pubsub.asyncIterator(["CONVERSATION_DELETED"]);
+        },
+        (
+          payload: ConversationDeletedSubscriptionPayload,
+          _,
+          context: GraphQLContext
+        ) => {
+          const { userId } = context;
+
+          if (!userId) {
+            throw new GraphQLError("The credential is invalid");
+          }
+
+          const {
+            conversationDeleted: { participants },
+          } = payload;
+
+          return !!(participants as IParticipant[]).find(
+            (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+          );
+        }
+      ),
     },
   },
 };

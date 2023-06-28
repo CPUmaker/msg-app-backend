@@ -1,6 +1,12 @@
 import { GraphQLError } from "graphql";
 import { withFilter } from "graphql-subscriptions";
 
-const resolvers = {};
+import { GraphQLContext } from "../../utils/types";
+
+const resolvers = {
+    Query: {},
+    Mutation: {},
+    Subscription: {},
+};
 
 export default resolvers;

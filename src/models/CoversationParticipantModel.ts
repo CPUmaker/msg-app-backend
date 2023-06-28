@@ -3,6 +3,7 @@ import { IUser } from "./UserModel";
 import { IConversation } from "./ConversationModel";
 
 export interface IParticipant extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId | IUser;
   conversation: mongoose.Types.ObjectId | IConversation;
   hasSeenLatestMessage: boolean;

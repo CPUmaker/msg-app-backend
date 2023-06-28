@@ -1,5 +1,6 @@
 import { PubSub } from "graphql-subscriptions";
 import { Context } from "graphql-ws/lib/server";
+import { IConversation } from "../models/ConversationModel";
 
 /**
  * Server Configuration
@@ -44,4 +45,23 @@ export interface SendMessageArguments {
   conversationId: string;
   senderId: string;
   body: string;
+}
+
+/**
+ * Conversations
+ */
+export interface ConversationCreatedSubscriptionPayload {
+  conversationCreated: IConversation;
+}
+
+export interface ConversationUpdatedSubscriptionData {
+  conversationUpdated: {
+    conversation: IConversation;
+    addedUserIds: Array<string>;
+    removedUserIds: Array<string>;
+  };
+}
+
+export interface ConversationDeletedSubscriptionPayload {
+  conversationDeleted: IConversation;
 }
