@@ -4,6 +4,7 @@ import mongoose, { Mongoose } from "mongoose";
 
 import {
   GraphQLContext,
+  SubscriptEvent,
   ConversationCreatedSubscriptionPayload,
   ConversationUpdatedSubscriptionData,
   ConversationDeletedSubscriptionPayload,
@@ -70,7 +71,7 @@ const resolvers = {
         );
         await conversation.save();
 
-        pubsub.publish("CONVERSAION_CREATED", {
+        pubsub.publish(SubscriptEvent.CONVERSATION_CREATED, {
           conversationCreated: conversation,
         });
 
@@ -126,7 +127,7 @@ const resolvers = {
           .populate("participants")
           .exec();
 
-        pubsub.publish("CONVERSATION_DELETED", {
+        pubsub.publish(SubscriptEvent.CONVERSATION_DELETED, {
           conversationDeleted: deletedConversation,
         });
 
@@ -195,7 +196,7 @@ const resolvers = {
 
         await conversation.save();
 
-        pubsub.publish("CONVERSATION_UPDATED", {
+        pubsub.publish(SubscriptEvent.CONVERSATION_UPDATED, {
           conversationUpdated: {
             conversation: conversation,
             addedUserIds: participantsToCreate,
@@ -216,7 +217,7 @@ const resolvers = {
       subscribe: withFilter(
         (_: any, __: any, context: GraphQLContext) => {
           const { pubsub } = context;
-          return pubsub.asyncIterator(["CONVERSATION_CREATED"]);
+          return pubsub.asyncIterator([SubscriptEvent.CONVERSATION_CREATED]);
         },
         (
           payload: ConversationCreatedSubscriptionPayload,
@@ -243,7 +244,7 @@ const resolvers = {
       subscribe: withFilter(
         (_: any, __: any, context: GraphQLContext) => {
           const { pubsub } = context;
-          return pubsub.asyncIterator(["CONVERSATION_UPDATED"]);
+          return pubsub.asyncIterator([SubscriptEvent.CONVERSATION_UPDATED]);
         },
         (
           payload: ConversationUpdatedSubscriptionData,
@@ -290,7 +291,7 @@ const resolvers = {
       subscribe: withFilter(
         (_: any, __: any, context: GraphQLContext) => {
           const { pubsub } = context;
-          return pubsub.asyncIterator(["CONVERSATION_DELETED"]);
+          return pubsub.asyncIterator([SubscriptEvent.CONVERSATION_DELETED]);
         },
         (
           payload: ConversationDeletedSubscriptionPayload,

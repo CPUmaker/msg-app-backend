@@ -1,4 +1,7 @@
+import mongoose from "mongoose";
+
 import User from "../models/UserModel";
+import { IParticipant } from "../models/CoversationParticipantModel";
 
 class UserService {
   static async findById(id: string) {
@@ -20,6 +23,15 @@ class UserService {
     user.username = username;
     const savedUser = await user.save();
     return savedUser;
+  }
+
+  static userIsConversationParticipant(
+    participants: Array<IParticipant>,
+    userId: string
+  ) {
+    return !!participants.find(
+      (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+    );
   }
 }
 
