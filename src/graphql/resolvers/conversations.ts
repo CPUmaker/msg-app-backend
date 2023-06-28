@@ -14,6 +14,7 @@ import Participant, {
 } from "../../models/CoversationParticipantModel";
 import Conversation, { IConversation } from "../../models/ConversationModel";
 import Message, { IMessage } from "../../models/MessageModel";
+import UserService from "../../services/UserService";
 
 const resolvers = {
   Query: {
@@ -152,7 +153,7 @@ const resolvers = {
       try {
         const conversation = await Conversation.findById(conversationId)
           .populate("participants")
-          .populate("latestMessage")
+          .populate("latestMessage", "user")
           .exec();
         if (!conversation) {
           throw new Error("The conversationId does not exist");
@@ -265,8 +266,9 @@ const resolvers = {
             },
           } = payload;
 
-          const userIsParticipant = !!(participants as IParticipant[]).find(
-            (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+          const userIsParticipant = UserService.userIsConversationParticipant(
+            participants as IParticipant[],
+            userId
           );
 
           const lastestMessage = payload.conversationUpdated.conversation

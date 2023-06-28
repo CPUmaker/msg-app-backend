@@ -96,6 +96,7 @@ const resolvers = {
         });
 
         conversation.latestMessage = newMessage;
+        conversation.messages.push(newMessage);
         await conversation.save();
 
         pubsub.publish(SubscriptEvent.MESSAGE_SENT, { messageSent: newMessage });

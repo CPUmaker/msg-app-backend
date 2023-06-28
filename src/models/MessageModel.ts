@@ -4,9 +4,12 @@ import { IConversation } from "./ConversationModel";
 import { IUser } from "./UserModel";
 
 export interface IMessage extends mongoose.Document {
+  _id: mongoose.Types.ObjectId;
   conversation: mongoose.Types.ObjectId | IConversation;
   sender: mongoose.Types.ObjectId | IUser;
   body: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const MessageSchema = new mongoose.Schema<IMessage>(

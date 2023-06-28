@@ -5,7 +5,8 @@ const typeDefs = gql`
     id: String
     sender: User
     body: String
-    createAt: Date
+    createdAt: Date
+    updatedAt: Date
   }
 
   type Query {
