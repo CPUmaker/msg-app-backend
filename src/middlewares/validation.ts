@@ -16,7 +16,6 @@ export const validatePasswordMatch = body('password')
 
 export const validateEmail = body('email')
   .isEmail()
-  .normalizeEmail()
   .withMessage('Please enter a valid email address.');
 
 export const validateUsername = body('username')

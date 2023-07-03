@@ -11,13 +11,13 @@ export const TokenDecoder = async (
     const token = req.header("Authorization")?.replace("Bearer ", "");
 
     if (!token) {
-      throw new Error();
+      throw new Error("The token format is invalid or does not exist");
     }
 
     const decode = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
     const user = await UserService.findById(decode.userId);
     if (!user) {
-      throw new Error();
+      throw new Error("The credential is invalid - User not found");
     }
     req.userId = user._id.toString();
 

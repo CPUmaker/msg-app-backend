@@ -101,7 +101,7 @@ const main = async () => {
     "/graphql",
     Auth.TokenDecoder,
     cors<cors.CorsRequest>(corsOptions),
-    json(),
+    express.json(),
     expressMiddleware(server, {
       context: async ({ req }): Promise<GraphQLContext> => {
         return { userId: req.userId, pubsub: pubsub };

@@ -14,6 +14,7 @@ import Participant, {
 } from "../../models/CoversationParticipantModel";
 import Conversation, { IConversation } from "../../models/ConversationModel";
 import Message, { IMessage } from "../../models/MessageModel";
+import User, { IUser } from "../../models/UserModel";
 import UserService from "../../services/UserService";
 
 const resolvers = {
@@ -31,8 +32,16 @@ const resolvers = {
 
       try {
         const participants = await Participant.find({
-          user: new mongoose.Types.ObjectId(userId),
-        }).populate("conversation");
+          user: userId,
+        })
+          .populate({
+            path: "conversation",
+            populate: [
+              { path: "participants", populate: { path: "user" } },
+              { path: "latestMessage", select: "sender" },
+            ],
+          })
+          .exec();
         const conversations = participants.map(
           (participant) => participant.conversation
         );
@@ -63,7 +72,7 @@ const resolvers = {
         conversation.participants = await Promise.all(
           participantIds.map(async (participantUserId) => {
             const participant: IParticipant = new Participant({
-              user: participantUserId,
+              user: await User.findById(participantUserId),
               conversation: conversation._id,
               hasSeenLatestMessage: participantUserId === userId,
             });
@@ -122,11 +131,14 @@ const resolvers = {
       }
 
       try {
-        const deletedConversation = await Conversation.findByIdAndDelete(
-          conversationId
-        )
-          .populate("participants")
+        const deletedConversation = await Conversation.findById(conversationId)
+          .populate({ path: "participants", populate: "user" })
+          .populate({ path: "latestMessage", populate: "sender" })
           .exec();
+        if (!deletedConversation) {
+          throw new GraphQLError("Conversation does not exist");
+        }
+        await Conversation.findByIdAndDelete(conversationId);
 
         pubsub.publish(SubscriptEvent.CONVERSATION_DELETED, {
           conversationDeleted: deletedConversation,
@@ -152,8 +164,7 @@ const resolvers = {
 
       try {
         const conversation = await Conversation.findById(conversationId)
-          .populate("participants")
-          .populate("latestMessage", "user")
+          .populate({ path: "participants", populate: "user" })
           .exec();
         if (!conversation) {
           throw new Error("The conversationId does not exist");
@@ -162,7 +173,7 @@ const resolvers = {
         const participants = conversation.participants as IParticipant[];
 
         const existingParticipants = participants.map((participant) =>
-          (participant.user as mongoose.Types.ObjectId).toString()
+          (participant.user as IUser)._id.toString()
         );
 
         const participantsToDelete = existingParticipants.filter(
@@ -176,7 +187,7 @@ const resolvers = {
         // Delete participants
         conversation.participants = participants.filter(
           (participant) =>
-            !participantsToDelete.includes(participant._id.toString())
+            !participantsToDelete.includes(participant.user._id.toString())
         );
         const removedParticipants = participantsToDelete.map(
           async (pUID) => await Participant.findOneAndDelete({ user: pUID })
@@ -199,7 +210,16 @@ const resolvers = {
 
         pubsub.publish(SubscriptEvent.CONVERSATION_UPDATED, {
           conversationUpdated: {
-            conversation: conversation,
+            conversation: await Conversation.findById(conversationId)
+              .populate({
+                path: "participants",
+                populate: "user",
+              })
+              .populate({
+                path: "latestMessage",
+                populate: "sender",
+              })
+              .exec(),
             addedUserIds: participantsToCreate,
             removedUserIds: participantsToDelete,
           },

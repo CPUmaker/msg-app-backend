@@ -8,8 +8,17 @@ const typeDefs = gql`
     username: String
   }
 
+  type CreateUsernameResponse {
+    success: Boolean
+    error: String
+  }
+
   type Query {
     searchUsers(username: String!): [User]
+  }
+
+  type Mutation {
+    createUsername(username: String!): CreateUsernameResponse
   }
 `;
 

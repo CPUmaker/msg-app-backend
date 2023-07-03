@@ -11,20 +11,20 @@ router.post("/login", async (req, res, next) => {
   try {
     let user: IUser | null;
     if (req.body.username) {
-      user = await UserService.findByUsername(req.body.username)
+      user = await UserService.findByUsername(req.body.username);
     } else {
-      user = await UserService.findByEmail(req.body.email)
+      user = await UserService.findByEmail(req.body.email);
     }
     if (!user) {
       return res.status(401).json({
-        errors: ["The username does not exist"],
+        error: "The username does not exist",
       });
     }
 
     const isValid = await user.comparePassword(req.body.password);
     if (!isValid) {
       return res.status(401).json({
-        errors: ["The credential is invalid"],
+        error: "The credential is invalid",
       });
     }
 
@@ -41,14 +41,14 @@ router.post("/login", async (req, res, next) => {
   }
 });
 
-router.get("/logout", Auth.TokenDecoder, async (req, res) => {
+router.post("/check-valid", Auth.TokenDecoder, async (req, res) => {
   const user = await UserService.findById(req.userId);
   if (!user) {
     return res.status(401).json({
-      errors: ["The credential is invalid"],
+      error: "The credential is invalid",
     });
   }
-  return res.json({ success: "Successfully logout" });
+  return res.json({ success: true });
 });
 
 export default router;

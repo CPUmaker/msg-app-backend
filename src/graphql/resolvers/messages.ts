@@ -2,13 +2,19 @@ import mongoose from "mongoose";
 import { GraphQLError } from "graphql";
 import { withFilter } from "graphql-subscriptions";
 
-import { GraphQLContext, SendMessageArguments, SendMessageSubscriptionPayload, SubscriptEvent } from "../../utils/types";
+import {
+  GraphQLContext,
+  SendMessageArguments,
+  SendMessageSubscriptionPayload,
+  SubscriptEvent,
+} from "../../utils/types";
 import Message, { IMessage } from "../../models/MessageModel";
 import Conversation, { IConversation } from "../../models/ConversationModel";
 import Participant, {
   IParticipant,
 } from "../../models/CoversationParticipantModel";
 import UserService from "../../services/UserService";
+import User from "../../models/UserModel";
 
 type ObjectId = mongoose.Types.ObjectId;
 
@@ -68,7 +74,7 @@ const resolvers = {
 
       try {
         const newMessage = new Message({
-          sender: senderId,
+          sender: await User.findById(senderId),
           conversation: conversationId,
           body,
         });
@@ -84,7 +90,7 @@ const resolvers = {
         const participantId = participant._id;
 
         const conversation = await Conversation.findById(conversationId)
-          .populate("participants")
+          .populate({ path: "participants", populate: "user" })
           .exec();
         if (!conversation) {
           throw new GraphQLError("Conversation Not Found");
@@ -99,7 +105,9 @@ const resolvers = {
         conversation.messages.push(newMessage);
         await conversation.save();
 
-        pubsub.publish(SubscriptEvent.MESSAGE_SENT, { messageSent: newMessage });
+        pubsub.publish(SubscriptEvent.MESSAGE_SENT, {
+          messageSent: newMessage,
+        });
         pubsub.publish(SubscriptEvent.CONVERSATION_UPDATED, {
           conversationUpdated: {
             conversation,
@@ -126,8 +134,12 @@ const resolvers = {
           args: { conversationId: string },
           context: GraphQLContext
         ) => {
-          const { messageSent: { conversation: conversationId } } = payload;
-          return (conversationId as ObjectId).toString() === args.conversationId;
+          const {
+            messageSent: { conversation: conversationId },
+          } = payload;
+          return (
+            (conversationId as ObjectId).toString() === args.conversationId
+          );
         }
       ),
     },
