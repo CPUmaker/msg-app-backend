@@ -8,6 +8,7 @@ export interface IUser extends mongoose.Document {
   username: string;
   email: string;
   password: string;
+  avatar: string;
   messages: (mongoose.Types.ObjectId | IMessage)[];
   conversations: (mongoose.Types.ObjectId | IConversation)[];
   comparePassword: (candidatePassword: string) => Promise<boolean>;
@@ -34,6 +35,11 @@ const userSchema = new mongoose.Schema<IUser>(
       required: true,
       trim: true,
       minlength: 8,
+    },
+    avatar: {
+      type: String,
+      required: true,
+      default: `https://i.pravatar.cc/300?img=${Math.floor(Math.random() * 70) + 1}`,
     },
     messages: {
       type: [mongoose.Schema.Types.ObjectId],

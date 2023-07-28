@@ -13,12 +13,14 @@ import dotenv from "dotenv";
 import path from "path";
 import { createServer } from "http";
 import ws from "ws";
+import jwt, { Secret, JwtPayload } from "jsonwebtoken";
 
 import indexRouter from "./routes";
 import typeDefs from "./graphql/typeDefs";
 import resolvers from "./graphql/resolvers";
 import * as Auth from "./middlewares/authentication";
 import { GraphQLContext, SubscriptionContext } from "./utils/types";
+import UserService from "./services/UserService";
 
 const main = async () => {
   dotenv.config({ path: path.join(__dirname, "../.env") });
@@ -54,8 +56,9 @@ const main = async () => {
     ctx;
     // ctx is the graphql-ws Context where connectionParams live
     if (ctx.connectionParams && ctx.connectionParams.userId) {
-      const { userId } = ctx.connectionParams;
-      return { userId, pubsub };
+      const { userId: token } = ctx.connectionParams;
+      const decode = jwt.verify(token, process.env.JWT_SECRET) as JwtPayload;
+      return { userId: decode.userId, pubsub };
     }
     // Otherwise let our resolvers know we don't have a current user
     return { userId: null, pubsub };

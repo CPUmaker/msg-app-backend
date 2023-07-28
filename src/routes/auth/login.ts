@@ -35,7 +35,7 @@ router.post("/login", async (req, res, next) => {
         expiresIn: "2 days",
       }
     );
-    return res.json({ jwt: token });
+    return res.json({ jwt: token, userId: user._id.toString() });
   } catch (err) {
     return next(err);
   }

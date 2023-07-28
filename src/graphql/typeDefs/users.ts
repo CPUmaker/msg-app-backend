@@ -6,6 +6,8 @@ const typeDefs = gql`
   type User {
     id: String
     username: String
+    email: String
+    avatar: String
   }
 
   type CreateUsernameResponse {
@@ -14,7 +16,15 @@ const typeDefs = gql`
   }
 
   type Query {
+    user: User
+  }
+
+  type Query {
     searchUsers(username: String!): [User]
+  }
+
+  type Query {
+    usersInConversation(conversationId: String!): [User]
   }
 
   type Mutation {

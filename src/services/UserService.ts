@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-import User from "../models/UserModel";
+import User, { IUser } from "../models/UserModel";
 import { IParticipant } from "../models/CoversationParticipantModel";
 
 class UserService {
@@ -30,7 +30,7 @@ class UserService {
     userId: string
   ) {
     return !!participants.find(
-      (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+      (p) => (p.user as IUser).id.toString() === userId
     );
   }
 }

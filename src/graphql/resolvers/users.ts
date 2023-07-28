@@ -2,10 +2,30 @@ import { GraphQLError } from "graphql";
 import { CreateUsernameResponse, GraphQLContext } from "../../utils/types";
 
 import User, { IUser } from "../../models/UserModel";
+import Participant, {
+  IParticipant,
+} from "../../models/CoversationParticipantModel";
 import UserService from "../../services/UserService";
 
 const resolvers = {
   Query: {
+    user: async function user(
+      _: any,
+      args: Record<string, never>,
+      context: GraphQLContext
+    ): Promise<IUser> {
+      const { userId } = context;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      const user = (await UserService.findById(
+        userId
+      )) as IUser;
+
+      return user;
+    },
     searchUsers: async function searchUsers(
       _: any,
       args: { username: string },
@@ -28,6 +48,32 @@ const resolvers = {
         })
           .ne("username", myUsername)
           .exec();
+
+        return users;
+      } catch (error: any) {
+        console.log("[error]", error);
+        throw new GraphQLError(error?.message);
+      }
+    },
+    usersInConversation: async function usersInConversation(
+      _: any,
+      args: { conversationId: string },
+      context: GraphQLContext
+    ): Promise<Array<IUser>> {
+      const { conversationId } = args;
+      const { userId } = context;
+
+      if (!userId) {
+        throw new GraphQLError("The credential is invalid");
+      }
+
+      try {
+        const participants = (await Participant.find({
+          conversation: conversationId,
+        })
+          .populate("user")
+          .exec()) as IParticipant[];
+        const users = participants.map((value) => value.user as IUser);
 
         return users;
       } catch (error: any) {

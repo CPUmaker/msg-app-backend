@@ -37,8 +37,8 @@ const resolvers = {
           .populate({
             path: "conversation",
             populate: [
-              { path: "participants", populate: { path: "user" } },
-              { path: "latestMessage", select: "sender" },
+              { path: "participants", populate: "user" },
+              { path: "latestMessage", populate: "sender" },
             ],
           })
           .exec();
@@ -82,7 +82,10 @@ const resolvers = {
         await conversation.save();
 
         pubsub.publish(SubscriptEvent.CONVERSATION_CREATED, {
-          conversationCreated: conversation,
+          conversationCreated: await conversation.populate({
+            path: "participants",
+            populate: "user",
+          }),
         });
 
         return { conversationId: conversation._id.toString() };
@@ -189,8 +192,10 @@ const resolvers = {
           (participant) =>
             !participantsToDelete.includes(participant.user._id.toString())
         );
-        const removedParticipants = participantsToDelete.map(
-          async (pUID) => await Participant.findOneAndDelete({ user: pUID })
+        const removedParticipants = await Promise.all(
+          participantsToDelete.map(
+            async (pUID) => await Participant.findOneAndDelete({ user: pUID })
+          )
         );
 
         // Add participants
@@ -256,7 +261,7 @@ const resolvers = {
           } = payload;
 
           return !!(participants as IParticipant[]).find(
-            (p) => (p.user as mongoose.Types.ObjectId).toString() === userId
+            (p) => (p.user as IUser).id.toString() === userId
           );
         }
       ),

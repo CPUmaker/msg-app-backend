@@ -32,7 +32,10 @@ const resolvers = {
       }
 
       const conversation = await Conversation.findById(conversationId)
-        .populate("participants")
+        .populate({
+          path: "participants",
+          populate: "user",
+        })
         .exec();
       if (!conversation) {
         throw new GraphQLError("Conversation Not Found");
